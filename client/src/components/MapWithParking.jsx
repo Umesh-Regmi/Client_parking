@@ -4,6 +4,7 @@ import L from "leaflet";
 import axios from "axios";
 import "leaflet/dist/leaflet.css";
 import RoutingMachine from "./routing-machine";
+import toast from "react-hot-toast";
 
 // 🧭 New import
 
@@ -67,7 +68,7 @@ export default function MapWithRouting() {
       .then((res) => setParkingSpots(res.data))
       .catch((err) => {
         console.error("Error loading spots:", err);
-        alert("Failed to load spots.");
+        toast.error("Failed to load spots.");
       });
   }, []);
 
