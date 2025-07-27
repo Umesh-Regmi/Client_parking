@@ -1,7 +1,14 @@
-import { Link } from "react-router";
+import { Link, Navigate } from "react-router";
 import AuthForm from "../../components/form/auth";
-
+import { useAuth } from "../../hooks/useAuth";
 export default function Register() {
+     const { user } = useAuth();
+
+
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md p-8 bg-white rounded shadow">

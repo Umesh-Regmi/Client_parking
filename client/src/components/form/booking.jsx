@@ -1,13 +1,12 @@
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { bookingSchema } from "../../schema/booking";
-// import { bookingSchema } from "./bookingSchema";
 
 const BookingForm = ({ onSubmit }) => {
+  console.log(onSubmit)
   const {
     register,
     handleSubmit,
-    control,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(bookingSchema),
@@ -18,70 +17,28 @@ const BookingForm = ({ onSubmit }) => {
   });
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div>
-        <input {...register("user")} placeholder="User ID" className="input" />
-        {errors.user && <p className="text-red-500">{errors.user.message}</p>}
-      </div>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 p-4">
 
-      <div>
-        <input
-          {...register("parkingSpot")}
-          placeholder="Parking Spot ID"
-          className="input"
-        />
-        {errors.parkingSpot && (
-          <p className="text-red-500">{errors.parkingSpot.message}</p>
-        )}
-      </div>
-
-      <div>
-        <input
-          type="number"
-          {...register("slotNumber")}
-          placeholder="Slot Number"
-          className="input"
-        />
-        {errors.slotNumber && (
-          <p className="text-red-500">{errors.slotNumber.message}</p>
-        )}
-      </div>
-
-      <div>
-        <input
-          type="datetime-local"
-          {...register("startTime")}
-          className="input"
-        />
-        {errors.startTime && (
-          <p className="text-red-500">{errors.startTime.message}</p>
-        )}
-      </div>
-
-      <div>
-        <input
-          type="datetime-local"
-          {...register("endTime")}
-          className="input"
-        />
-        {errors.endTime && (
-          <p className="text-red-500">{errors.endTime.message}</p>
-        )}
-      </div>
 
       <div>
         <input
           {...register("vehicle.number")}
           placeholder="Vehicle Number"
-          className="input"
+          className={`w-full px-4 py-2 rounded-md border ${
+            errors.vehicle?.number ? "border-red-500" : "border-indigo-300"
+          } focus:outline-none focus:ring-2 focus:ring-indigo-500`}
         />
         {errors.vehicle?.number && (
-          <p className="text-red-500">{errors.vehicle.number.message}</p>
+          <p className="mt-1 text-sm text-red-600">{errors.vehicle.number.message}</p>
         )}
       </div>
 
       <div>
-        <select {...register("vehicle.type")} className="input">
+        <label className="block mb-1 font-medium text-indigo-700">Vehicle Type</label>
+        <select
+          {...register("vehicle.type")}
+          className="w-full px-4 py-2 rounded-md border border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
           <option value="car">Car</option>
           <option value="bike">Bike</option>
           <option value="truck">Truck</option>
@@ -91,15 +48,21 @@ const BookingForm = ({ onSubmit }) => {
       </div>
 
       <div>
+        <label className="block mb-1 font-medium text-indigo-700">Vehicle Model</label>
+
         <input
           {...register("vehicle.model")}
           placeholder="Vehicle Model"
-          className="input"
+          className="w-full px-4 py-2 rounded-md border border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
       </div>
 
       <div>
-        <select {...register("status")} className="input">
+        <label className="block mb-1 font-medium text-indigo-700">Booking Status</label>
+        <select
+          {...register("status")}
+          className="w-full px-4 py-2 rounded-md border border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
           <option value="booked">Booked</option>
           <option value="cancelled">Cancelled</option>
           <option value="completed">Completed</option>
@@ -108,7 +71,7 @@ const BookingForm = ({ onSubmit }) => {
 
       <button
         type="submit"
-        className="bg-blue-500 text-white px-4 py-2 rounded"
+        className="cursor-pointer w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-md font-semibold transition"
       >
         Submit Booking
       </button>

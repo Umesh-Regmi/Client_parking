@@ -49,12 +49,12 @@ export default function AuthForm({ type = "login" }) {
       onSuccess: (data) => {
         toast.success(`${isLogin ? "Login" : "Register"} successful`);
         console.log("Response data:", data);
-        if (type === "") {
+        if (type === "register") {
           // Redirect to login page after successful registration
           navigate("/login");
         } else {
           localStorage.setItem("token", data.data.token);
-          localStorage.setItem("user", data.data.user);
+          localStorage.setItem("user", JSON.stringify(data.data.user));
           navigate("/");
         }
       },

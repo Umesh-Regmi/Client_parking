@@ -1,12 +1,25 @@
 import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import API from "../api";
+import toast from "react-hot-toast";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import L from "leaflet";
-import axios from "axios";
 import "leaflet/dist/leaflet.css";
 import RoutingMachine from "./routing-machine";
-import toast from "react-hot-toast";
-
-// 🧭 New import
+import NavBar from "./nav";
+import ParkingDetailsModal from "./models/parking-detail-model";
+import BookingModal from "./models/booking-modal";
+import { useBookParkingSpot } from "../hooks/useBooking";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "../hooks/useAuth";
+import { useParkingSpots } from "../hooks/useParkingSpot";
+import { useParkingSpotById } from "../hooks/useParkingSpotById";
 
 // 🛠️ Fix marker icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -30,6 +43,7 @@ const userIcon = new L.Icon({
   iconAnchor: [15, 30],
   popupAnchor: [0, -30],
 });
+
 function SetMapCenter({ coords }) {
   const map = useMap();
   useEffect(() => {
@@ -48,8 +62,60 @@ function FixMapResize() {
 
 export default function MapWithRouting() {
   const [userLocation, setUserLocation] = useState(null);
-  const [parkingSpots, setParkingSpots] = useState([]);
+  const [selectedSpotId, setSelectedSpotId] = useState(null);
+const { data: parkingSpots = [], isLoading: isLoadingSpots, isError: isSpotsError } = useParkingSpots();
+
+  const [filteredSpots, setFilteredSpots] = useState([]);
   const [selectedSpot, setSelectedSpot] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+ const {
+  data: selectedSpotDetails,
+  isLoading: isSpotLoading,
+  // isError: isSpotError,
+} = useParkingSpotById(selectedSpotId);
+  const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [isDetalViewOpen, setIsDetalViewOpen] = useState(false);
+const { user } = useAuth();
+
+  const queryClient = useQueryClient();
+
+  useEffect(()=>{
+    if(selectedSpotId && !isSpotLoading){
+      setIsDetalViewOpen(true)
+    }
+
+  },[isSpotLoading,selectedSpotId])
+
+  function handleBookNow(spot) {
+    setIsBookingOpen(true); // open booking form modal
+    // toast.success("Booking confirmed!");
+    setSelectedSpot({
+      lat: spot.coordinates.lat,
+      lng: spot.coordinates.lng,
+    });
+  }
+
+const {
+  mutate: bookParking,
+  // isLoading,
+  // isSuccess,
+  // isError,
+  // error,
+} = useBookParkingSpot();
+
+  function handleBookingSubmit(data) {
+  bookParking({...data,userId:user?.id,parkingSpotId:selectedSpotDetails._id}, {
+    onSuccess: () => {
+      toast.success("Booking submitted successfully!");
+      setIsBookingOpen(false);
+      queryClient.invalidateQueries(["bookings","parkingSpots"]); // optional: refetch bookings
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error("Booking failed. Try again.");
+    },
+  });
+}
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
@@ -62,74 +128,149 @@ export default function MapWithRouting() {
     );
   }, []);
 
+  
+
   useEffect(() => {
-    axios
-      .get("http://localhost:8080/api/parking")
-      .then((res) => setParkingSpots(res.data))
-      .catch((err) => {
-        console.error("Error loading spots:", err);
-        toast.error("Failed to load spots.");
-      });
-  }, []);
+  const filtered = parkingSpots.filter((spot) =>
+    (spot.name || spot.spotNumber || "")
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
+  );
+  setFilteredSpots(filtered);
+}, [searchTerm, parkingSpots]);
 
   if (!userLocation) return <p>📡 Locating you...</p>;
-
+if (isLoadingSpots) return <p>Loading parking spots...</p>;
+if (isSpotsError) return <p>Error loading parking spots.</p>;
   return (
-    <div style={{ height: "700px", width: "100vw" }}>
-      <MapContainer
-        center={[userLocation.lat, userLocation.lng]}
-        zoom={14}
-        style={{ height: "100%", width: "100%" }}
-      >
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        <FixMapResize />
-        <SetMapCenter coords={[userLocation.lat, userLocation.lng]} />
+    <div className="w-full z-10">
+      <NavBar />
+      {/* 🔍 Search Input */}
+      <div className="w-full px-4 py-2 z-10">
+        <input
+          type="text"
+          placeholder="Search parking spot..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full px-4 py-2 border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-800"
+        />
+      </div>
 
-        {/* 👤 User Marker */}
-        <Marker position={[userLocation.lat, userLocation.lng]} icon={userIcon}>
-          <Popup>You are here</Popup>
-        </Marker>
+      {/* 🗺️ Map */}
+      <div className="z-10" style={{ height: "700px", width: "100vw" }}>
+        <MapContainer
+          center={[userLocation.lat, userLocation.lng]}
+          zoom={14}
+          style={{ height: "100%", width: "100%" }}
+        >
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          {/* Let user pick location by clicking */}
+          <LocationPicker
+            userLocation={userLocation}
+            setUserLocation={setUserLocation}
+          />
 
-        {/* 🅿️ Parking Spots */}
-        {parkingSpots.map((spot) => (
+          <FixMapResize />
+          <SetMapCenter coords={[userLocation.lat, userLocation.lng]} />
+
+          {/* 👤 User Marker */}
           <Marker
-            key={spot._id}
-            position={[spot.coordinates.lat, spot.coordinates.lng]}
-            icon={parkingIcon}
-            eventHandlers={{
-              click: () =>
-                setSelectedSpot({
-                  lat: spot.coordinates.lat,
-                  lng: spot.coordinates.lng,
-                }),
-            }}
+            position={[userLocation.lat, userLocation.lng]}
+            icon={userIcon}
           >
-            <Popup>
-              <strong>{spot.spotNumber ?? spot.name ?? "Parking Spot"}</strong>
-              <br />
-              Total Slots: {spot.totalSlots}
-              <br />
-              Price :{" "}
-              {spot.price ? `${spot.price} "Rs per hour"` : "not available"}
-              <br />
-              Available Slots: {spot.availableSlots}
-              <br />
-              EV: {spot.hasEvCharging ? "Yes" : "No"}
-              <br />
-              Café: {spot.hasCafeNearby ? "Yes" : "No"}
-              <br />
-              Petrol Pump: {spot.hasPetrolPumpNearby ? "Yes" : "No"}
-              <br />
-              <em>Click to show street path</em>
-            </Popup>
+            <Popup>You are here</Popup>
           </Marker>
-        ))}
 
-        {/* 🚗 Routing Path */}
-        {selectedSpot && (
-          <RoutingMachine from={userLocation} to={selectedSpot} />
-        )}
-      </MapContainer>
+          {/* 🅿️ Filtered Parking Spots */}
+          {filteredSpots.map((spot) => (
+            <Marker
+              key={spot._id}
+              position={[spot.coordinates.lat, spot.coordinates.lng]}
+              icon={parkingIcon}
+              eventHandlers={{
+               click: () => {
+              setSelectedSpotId(spot._id); // or `spot.id`
+            },
+              }}
+            >
+              <Popup>
+                <strong>
+                  {spot.spotNumber ?? spot.name ?? "Parking Spot"}
+                </strong>
+                <br />
+                Total Slots: {spot.totalSlots}
+                <br />
+                Price: {spot.price ? `${spot.price} Rs/hr` : "N/A"}
+                <br />
+                Available: {spot.availableSlots}
+                <br />
+                EV: {spot.hasEvCharging ? "Yes" : "No"}
+                <br />
+                Café: {spot.hasCafeNearby ? "Yes" : "No"}
+                <br />
+                Petrol Pump: {spot.hasPetrolPumpNearby ? "Yes" : "No"}
+                <br />
+                <em>Click to show street path</em>
+              </Popup>
+            </Marker>
+          ))}
+
+          {/* 🧭 Direction */}
+          {selectedSpot && (
+            <RoutingMachine from={userLocation} to={selectedSpot} />
+          )}
+        </MapContainer>
+      </div>
+
+      {/* 🔽 Search Results (Optional below map) */}
+      <div className="px-4 py-2 space-y-2">
+        {filteredSpots.map((spot) => (
+          <div
+            key={spot._id}
+            onClick={() =>
+              setSelectedSpot({
+                lat: spot.coordinates.lat,
+                lng: spot.coordinates.lng,
+              })
+            }
+            className="cursor-pointer p-2 bg-white rounded shadow hover:bg-blue-100 transition"
+          >
+            {spot.name ?? spot.spotNumber} – Available:{" "}
+            {spot.availableSlots ?? "N/A"}
+          </div>
+        ))}
+      </div>
+      {/* Parking Details Modal */}
+      {isDetalViewOpen && !isBookingOpen && (
+        <ParkingDetailsModal
+          spot={selectedSpotDetails}
+          onClose={() => {
+            setIsDetalViewOpen(false),
+            setSelectedSpotId(null);
+          }}
+          onBook={handleBookNow}
+        />
+      )}
+      {/* Booking Form Modal */}
+      {isBookingOpen && (
+        <BookingModal
+          handleBookingSubmit={handleBookingSubmit}
+          setIsBookingOpen={setIsBookingOpen}
+        />
+      )}
     </div>
   );
+}
+
+function LocationPicker({ setUserLocation }) {
+  // useMapEvents lets us listen to map events
+  useMapEvents({
+    click(e) {
+      setUserLocation({
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+      });
+    },
+  });
+  return null;
 }
